@@ -1,0 +1,3 @@
+#!/bin/bash
+CURRENT=$(pwd)
+docker run --rm -v $CURRENT/9cc:/9cc -w /9cc compilerbook $@
