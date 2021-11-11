@@ -1,3 +1,8 @@
 9cc/9cc
 9cc/tmp
 9cc/tmp.s
+*~
+*.o
+tmp*
+a.out
+9cc
