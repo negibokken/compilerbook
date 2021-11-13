@@ -19,7 +19,16 @@ typedef enum {
   ND_MUL,
   ND_DIV,
   ND_NUM,
+  ND_EQ,
+  ND_NE,
+  ND_LT,
+  ND_LE,
 } NodeKind;
+
+char* node_kind_str[] = {
+    "ND_ADD", "ND_SUB", "ND_MUL", "ND_DIV", "ND_NUM",
+    "ND_EQ",  "ND_NE",  "ND_LT",  "ND_LE",
+};
 
 typedef struct Node Node;
 
@@ -35,9 +44,18 @@ struct Token {
   Token* next;
   int val;
   char* str;
+  int len;
 };
 
 Token* token;
+
+void dbg(char* fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  fprintf(stderr, ">> ");
+  vfprintf(stderr, fmt, ap);
+  fprintf(stderr, "\n");
+}
 
 void error(char* fmt, ...) {
   va_list ap;
@@ -61,19 +79,21 @@ void error_at(char* loc, char* fmt, ...) {
   fprintf(stderr, "\n");
   exit(1);
 }
-
-bool consume(char op) {
-  if (token->kind != TK_RESERVED || token->str[0] != op) {
+//
+bool consume(char* op) {
+  if (token->kind != TK_RESERVED || strlen(op) != token->len ||
+      memcmp(token->str, op, token->len)) {
     return false;
   }
   token = token->next;
   return true;
 }
 
-void expect(char op) {
-  if (token->kind != TK_RESERVED || token->str[0] != op) {
-    error_at(token->str, "'%c ではありません", op);
-  }
+// Ensure that the current token is `op`.
+void expect(char* op) {
+  if (token->kind != TK_RESERVED || strlen(op) != token->len ||
+      memcmp(token->str, op, token->len))
+    error_at(token->str, "expected \"%s\"", op);
   token = token->next;
 }
 
@@ -90,39 +110,60 @@ bool at_eof() {
   return token->kind == TK_EOF;
 }
 
-Token* new_token(TokenKind kind, Token* cur, char* str) {
+Token* new_token(TokenKind kind, Token* cur, char* str, int len) {
   Token* tok = calloc(1, sizeof(Token));
   tok->kind = kind;
   tok->str = str;
+  tok->len = len;
   cur->next = tok;
   return tok;
 }
 
-Token* tokenize(char* p) {
+bool startswith(char* p, char* q) {
+  return memcmp(p, q, strlen(q)) == 0;
+}
+
+Node* expr();
+
+Token* tokenize() {
+  char* p = user_input;
+  dbg("%s\n", p);
   Token head;
   head.next = NULL;
   Token* cur = &head;
 
   while (*p) {
+    dbg("%c", *p);
     if (isspace(*p)) {
       p++;
       continue;
     }
 
-    if (*p == '+' || *p == '-' || *p == '*' || *p == '/') {
-      cur = new_token(TK_RESERVED, cur, p++);
+    if (startswith(p, "==") || startswith(p, "!=") || startswith(p, "<=") ||
+        startswith(p, ">=")) {
+      cur = new_token(TK_RESERVED, cur, p, 2);
+      p += 2;
+      continue;
+    }
+
+    if (strchr("+-*/()<>", *p)) {
+      dbg("reserved: %c", *p);
+      cur = new_token(TK_RESERVED, cur, p++, 1);
       continue;
     }
 
     if (isdigit(*p)) {
-      cur = new_token(TK_NUM, cur, p);
+      dbg("digit: %c", *p);
+      cur = new_token(TK_NUM, cur, p, 0);
+      char* q = p;
       cur->val = strtol(p, &p, 10);
+      cur->len = p - q;
       continue;
     }
 
     error_at(p, "トークナイズできません");
   }
-  new_token(TK_EOF, cur, p);
+  new_token(TK_EOF, cur, p, 0);
   return head.next;
 }
 
@@ -141,22 +182,20 @@ Node* new_node_num(int val) {
   return node;
 }
 
-Node* expr();
-
 Node* primary() {
-  if (consume('(')) {
+  if (consume("(")) {
     Node* node = expr();
-    expect(')');
+    expect(")");
     return node;
   }
   return new_node_num(expect_number());
 }
 
 Node* unary() {
-  if (consume('+')) {
-    return primary();
+  if (consume("+")) {
+    return unary();
   }
-  if (consume('-')) {
+  if (consume("-")) {
     return new_node(ND_SUB, new_node_num(0), primary());
   }
   return primary();
@@ -166,9 +205,9 @@ Node* mul() {
   Node* node = unary();
 
   for (;;) {
-    if (consume('*')) {
+    if (consume("*")) {
       node = new_node(ND_MUL, node, unary());
-    } else if (consume('/')) {
+    } else if (consume("/")) {
       node = new_node(ND_DIV, node, unary());
     } else {
       return node;
@@ -176,12 +215,12 @@ Node* mul() {
   }
 }
 
-Node* expr() {
+Node* add() {
   Node* node = mul();
   for (;;) {
-    if (consume('+')) {
+    if (consume("+")) {
       node = new_node(ND_ADD, node, mul());
-    } else if (consume('-')) {
+    } else if (consume("-")) {
       node = new_node(ND_SUB, node, mul());
     } else {
       return node;
@@ -189,13 +228,49 @@ Node* expr() {
   }
 }
 
+Node* relational() {
+  Node* node = add();
+  for (;;) {
+    if (consume("<")) {
+      node = new_node(ND_LT, node, add());
+    } else if (consume("<=")) {
+      node = new_node(ND_LE, node, add());
+    } else if (consume(">")) {
+      node = new_node(ND_LT, add(), node);
+    } else if (consume(">=")) {
+      node = new_node(ND_LE, add(), node);
+    } else {
+      return node;
+    }
+  }
+}
+
+Node* equality() {
+  Node* node = relational();
+  for (;;) {
+    if (consume("==")) {
+      node = new_node(ND_EQ, node, relational());
+    } else if (consume("!=")) {
+      node = new_node(ND_NE, node, relational());
+    } else {
+      return node;
+    }
+  }
+}
+
+Node* expr() {
+  return equality();
+}
+
 void gen(Node* node) {
   if (node->kind == ND_NUM) {
     printf("  push %d\n", node->val);
     return;
   }
+
   gen(node->lhs);
   gen(node->rhs);
+
   printf("  pop rdi\n");
   printf("  pop rax\n");
 
@@ -213,25 +288,59 @@ void gen(Node* node) {
       printf("  cqo\n");
       printf("  idiv rdi\n");
       break;
+    case ND_EQ:
+      printf("  cmp rax, rdi\n");
+      printf("  sete al\n");
+      printf("  movzb rax, al\n");
+      break;
+    case ND_NE:
+      printf("  cmp rax, rdi\n");
+      printf("  setne al\n");
+      printf("  movzb rax, al\n");
+      break;
+    case ND_LT:
+      printf("  cmp rax, rdi\n");
+      printf("  setl al\n");
+      printf("  movzb rax, al\n");
+      break;
+    case ND_LE:
+      printf("  cmp rax, rdi\n");
+      printf("  setle al\n");
+      printf("  movzb rax, al\n");
+      break;
   }
+
   printf("  push rax\n");
 }
 
-int main(int argc, char** argv) {
-  if (argc != 2) {
-    fprintf(stderr, "引数の個数が正しくありません\n");
-    return 1;
-  }
+void rec(Node* node) {
+  if (!node)
+    return;
 
+  rec(node->lhs);
+  printf("%d:%d", node->kind, node->val);
+  rec(node->rhs);
+}
+
+int main(int argc, char** argv) {
+  if (argc != 2)
+    error("%s: invalid number of arguments", argv[0]);
+
+  // Tokenize and parse.
   user_input = argv[1];
-  token = tokenize(user_input);
+  token = tokenize();
   Node* node = expr();
 
+  // Print out the first half of assembly.
   printf(".intel_syntax noprefix\n");
-  printf(".globl main\n");
+  printf(".global main\n");
   printf("main:\n");
+
+  // Traverse the AST to emit assembly.
   gen(node);
 
+  // A result must be at the top of the stack, so pop it
+  // to RAX to make it a program exit code.
   printf("  pop rax\n");
   printf("  ret\n");
   return 0;
