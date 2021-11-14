@@ -11,6 +11,7 @@
 //
 
 typedef enum {
+  TK_IDENT,  // Identifier
   TK_PUNCT,  // Keywords or punctuators
   TK_NUM,    // Numeric literals
   TK_EOF,    // End-of-file markers
@@ -49,6 +50,8 @@ typedef enum {
   ND_LE,         // <=
   ND_EXPR_STMT,  // Expression statement
   ND_NUM,        // Integer
+  ND_ASSIGN,     // Assignment =
+  ND_VAR,        // local variable
 } NodeKind;
 
 // AST node type
@@ -59,6 +62,7 @@ struct Node {
   Node* lhs;      // Left-hand side
   Node* rhs;      // Right-hand side
   int val;        // Used if kind == ND_NUM
+  char name;      // Used if kind == ND_LVAR
 };
 
 Node* parse(Token* tok);
