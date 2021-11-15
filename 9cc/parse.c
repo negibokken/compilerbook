@@ -1,5 +1,7 @@
 #include "9cc.h"
 
+// All local variable instances created during parsing are
+// accumulated to this list.
 Obj* locals;
 
 static Node* compound_stmt(Token** rest, Token* tok);
@@ -7,20 +9,18 @@ static Node* expr(Token** rest, Token* tok);
 static Node* expr_stmt(Token** rest, Token* tok);
 static Node* assign(Token** rest, Token* tok);
 static Node* equality(Token** rest, Token* tok);
-static Node* assign(Token** rest, Token* tok);
 static Node* relational(Token** rest, Token* tok);
 static Node* add(Token** rest, Token* tok);
 static Node* mul(Token** rest, Token* tok);
 static Node* unary(Token** rest, Token* tok);
 static Node* primary(Token** rest, Token* tok);
 
+// Find a local variable by name.
 static Obj* find_var(Token* tok) {
-  for (Obj* var = locals; var; var = var->next) {
+  for (Obj* var = locals; var; var = var->next)
     if (strlen(var->name) == tok->len &&
-        !strncmp(tok->loc, var->name, tok->len)) {
+        !strncmp(tok->loc, var->name, tok->len))
       return var;
-    }
-  }
   return NULL;
 }
 
@@ -64,10 +64,11 @@ static Obj* new_lvar(char* name) {
 }
 
 // stmt = "return" expr ";"
-//    | "if" "(" expr ")" stmt ("else" stmt)?
-//    | "for" "(" expr-stmt expr? ";" expr? ")" stmt
-//    | "{" compound-stmt
-//    | expr-stmt
+//      | "if" "(" expr ")" stmt ("else" stmt)?
+//      | "for" "(" expr-stmt expr? ";" expr? ")" stmt
+//      | "while" "(" expr ")" stmt
+//      | "{" compound-stmt
+//      | expr-stmt
 static Node* stmt(Token** rest, Token* tok) {
   if (equal(tok, "return")) {
     Node* node = new_unary(ND_RETURN, expr(&tok, tok->next));
@@ -81,9 +82,8 @@ static Node* stmt(Token** rest, Token* tok) {
     node->cond = expr(&tok, tok);
     tok = skip(tok, ")");
     node->then = stmt(&tok, tok);
-    if (equal(tok, "else")) {
+    if (equal(tok, "else"))
       node->els = stmt(&tok, tok->next);
-    }
     *rest = tok;
     return node;
   }
@@ -93,23 +93,30 @@ static Node* stmt(Token** rest, Token* tok) {
     tok = skip(tok->next, "(");
 
     node->init = expr_stmt(&tok, tok);
-    if (!equal(tok, ";")) {
+
+    if (!equal(tok, ";"))
       node->cond = expr(&tok, tok);
-    }
     tok = skip(tok, ";");
 
-    if (!equal(tok, ")")) {
+    if (!equal(tok, ")"))
       node->inc = expr(&tok, tok);
-    }
+    tok = skip(tok, ")");
+
+    node->then = stmt(rest, tok);
+    return node;
+  }
+
+  if (equal(tok, "while")) {
+    Node* node = new_node(ND_FOR);
+    tok = skip(tok->next, "(");
+    node->cond = expr(&tok, tok);
     tok = skip(tok, ")");
     node->then = stmt(rest, tok);
     return node;
   }
 
-  if (equal(tok, "{")) {
+  if (equal(tok, "{"))
     return compound_stmt(rest, tok->next);
-  }
-  return expr_stmt(rest, tok);
 
   return expr_stmt(rest, tok);
 }
@@ -118,9 +125,8 @@ static Node* stmt(Token** rest, Token* tok) {
 static Node* compound_stmt(Token** rest, Token* tok) {
   Node head = {};
   Node* cur = &head;
-  while (!equal(tok, "}")) {
+  while (!equal(tok, "}"))
     cur = cur->next = stmt(&tok, tok);
-  }
 
   Node* node = new_node(ND_BLOCK);
   node->body = head.next;
@@ -256,7 +262,7 @@ static Node* unary(Token** rest, Token* tok) {
   return primary(rest, tok);
 }
 
-// primary = "(" expr ")" | num
+// primary = "(" expr ")" | ident | num
 static Node* primary(Token** rest, Token* tok) {
   if (equal(tok, "(")) {
     Node* node = expr(&tok, tok->next);
@@ -266,9 +272,8 @@ static Node* primary(Token** rest, Token* tok) {
 
   if (tok->kind == TK_IDENT) {
     Obj* var = find_var(tok);
-    if (!var) {
+    if (!var)
       var = new_lvar(strndup(tok->loc, tok->len));
-    }
     *rest = tok->next;
     return new_var_node(var);
   }
@@ -285,6 +290,7 @@ static Node* primary(Token** rest, Token* tok) {
 // program = stmt*
 Function* parse(Token* tok) {
   tok = skip(tok, "{");
+
   Function* prog = calloc(1, sizeof(Function));
   prog->body = compound_stmt(&tok, tok);
   prog->locals = locals;
