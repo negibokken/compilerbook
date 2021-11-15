@@ -67,6 +67,7 @@ typedef enum {
   ND_LT,         // <
   ND_LE,         // <=
   ND_RETURN,     // "return"
+  ND_BLOCK,      // { ... }
   ND_EXPR_STMT,  // Expression statement
   ND_NUM,        // Integer
   ND_ASSIGN,     // Assignment =
@@ -79,8 +80,12 @@ struct Node {
   Node* next;     // Next node
   Node* lhs;      // Left-hand side
   Node* rhs;      // Right-hand side
-  int val;        // Used if kind == ND_NUM
-  Obj* var;       // Used if kind == ND_VAR
+
+  // Block
+  Node* body;
+
+  Obj* var;  // Used if kind == ND_VAR
+  int val;   // Used if kind == ND_NUM
 };
 
 Function* parse(Token* tok);
