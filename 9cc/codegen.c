@@ -95,7 +95,7 @@ static void gen_expr(Node* node) {
       return;
   }
 
-  error("invalid expression");
+  error_tok(node->tok, "invalid expression");
 }
 
 static void gen_stmt(Node* node) {
@@ -147,7 +147,7 @@ static void gen_stmt(Node* node) {
       return;
   }
 
-  error("invalid statement");
+  error_tok(node->tok, "invalid statement");
 }
 
 // Assign offsets to local variables.
