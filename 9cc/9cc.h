@@ -72,6 +72,8 @@ typedef enum {
   ND_BLOCK,      // { ... }
   ND_EXPR_STMT,  // Expression statement
   ND_NUM,        // Integer
+  ND_ADDR,       // unary &
+  ND_DEREF,      // unary *
   ND_ASSIGN,     // Assignment =
   ND_VAR,        // local variable
 } NodeKind;
