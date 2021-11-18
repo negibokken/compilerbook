@@ -310,6 +310,7 @@ static Node* new_add(Node* lhs, Node* rhs, Token* tok) {
   return new_binary(ND_ADD, lhs, rhs, tok);
 }
 
+// new_sub
 static Node* new_sub(Node* lhs, Node* rhs, Token* tok) {
   add_type(lhs);
   add_type(rhs);
