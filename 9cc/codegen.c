@@ -2,9 +2,9 @@
 
 static int depth;
 static char* argreg[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
+static Function* current_fn;
 
 static void gen_expr(Node* node);
-static Function* current_fn;
 
 static int count(void) {
   static int i = 1;
@@ -39,7 +39,7 @@ static void gen_addr(Node* node) {
       return;
   }
 
-  error("not an lvalue");
+  error_tok(node->tok, "not an lvalue");
 }
 
 // Generate code for a given node.
@@ -77,9 +77,10 @@ static void gen_expr(Node* node) {
         push();
         nargs++;
       }
-      for (int i = nargs - 1; i >= 0; i--) {
+
+      for (int i = nargs - 1; i >= 0; i--)
         pop(argreg[i]);
-      }
+
       printf("  mov $0, %%rax\n");
       printf("  call %s\n", node->funcname);
       return;
@@ -137,17 +138,15 @@ static void gen_stmt(Node* node) {
       gen_stmt(node->then);
       printf("  jmp .L.end.%d\n", c);
       printf(".L.else.%d:\n", c);
-      if (node->els) {
+      if (node->els)
         gen_stmt(node->els);
-      }
       printf(".L.end.%d:\n", c);
       return;
     }
     case ND_FOR: {
       int c = count();
-      if (node->init) {
+      if (node->init)
         gen_stmt(node->init);
-      }
       printf(".L.begin.%d:\n", c);
       if (node->cond) {
         gen_expr(node->cond);
@@ -155,17 +154,15 @@ static void gen_stmt(Node* node) {
         printf("  je  .L.end.%d\n", c);
       }
       gen_stmt(node->then);
-      if (node->inc) {
+      if (node->inc)
         gen_expr(node->inc);
-      }
       printf("  jmp .L.begin.%d\n", c);
       printf(".L.end.%d:\n", c);
       return;
     }
     case ND_BLOCK:
-      for (Node* n = node->body; n; n = n->next) {
+      for (Node* n = node->body; n; n = n->next)
         gen_stmt(n);
-      }
       return;
     case ND_RETURN:
       gen_expr(node->lhs);
@@ -183,11 +180,11 @@ static void gen_stmt(Node* node) {
 static void assign_lvar_offsets(Function* prog) {
   for (Function* fn = prog; fn; fn = fn->next) {
     int offset = 0;
-    for (Obj* var = prog->locals; var; var = var->next) {
+    for (Obj* var = fn->locals; var; var = var->next) {
       offset += 8;
       var->offset = -offset;
     }
-    prog->stack_size = align_to(offset, 16);
+    fn->stack_size = align_to(offset, 16);
   }
 }
 
@@ -204,9 +201,16 @@ void codegen(Function* prog) {
     printf("  mov %%rsp, %%rbp\n");
     printf("  sub $%d, %%rsp\n", fn->stack_size);
 
+    // Save passed-by-register arguments to the stack
+    int i = 0;
+    for (Obj* var = fn->params; var; var = var->next)
+      printf("  mov %s, %d(%%rbp)\n", argreg[i++], var->offset);
+
+    // Emit code
     gen_stmt(fn->body);
     assert(depth == 0);
 
+    // Epilogue
     printf(".L.return.%s:\n", fn->name);
     printf("  mov %%rbp, %%rsp\n");
     printf("  pop %%rbp\n");
