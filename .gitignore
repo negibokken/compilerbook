@@ -6,3 +6,10 @@
 tmp*
 a.out
 .vscode
+**/*~
+**/\#*
+**/*.o
+**/*.s
+**/a.out
+/tmp*
+9cc/test/*.exe
