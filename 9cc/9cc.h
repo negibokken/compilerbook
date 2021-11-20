@@ -14,8 +14,9 @@ typedef struct Node Node;
 // tokenize.c
 //
 
+// Token
 typedef enum {
-  TK_IDENT,    // Identifier
+  TK_IDENT,    // Identifiers
   TK_PUNCT,    // Punctuators
   TK_KEYWORD,  // Keywords
   TK_NUM,      // Numeric literals
@@ -44,14 +45,16 @@ Token* tokenize(char* input);
 // parse.c
 //
 
+// Local variable
 typedef struct Obj Obj;
 struct Obj {
   Obj* next;
-  char* name;
-  Type* ty;
-  int offset;
+  char* name;  // Variable name
+  Type* ty;    // Type
+  int offset;  // Offset from RBP
 };
 
+// Function
 typedef struct Function Function;
 struct Function {
   Function* next;
@@ -63,6 +66,7 @@ struct Function {
   int stack_size;
 };
 
+// AST node
 typedef enum {
   ND_ADD,        // +
   ND_SUB,        // -
@@ -73,17 +77,17 @@ typedef enum {
   ND_NE,         // !=
   ND_LT,         // <
   ND_LE,         // <=
+  ND_ASSIGN,     // =
+  ND_ADDR,       // unary &
+  ND_DEREF,      // unary *
   ND_RETURN,     // "return"
   ND_IF,         // "if"
   ND_FOR,        // "for" or "while"
   ND_BLOCK,      // { ... }
   ND_FUNCALL,    // Function call
   ND_EXPR_STMT,  // Expression statement
+  ND_VAR,        // Variable
   ND_NUM,        // Integer
-  ND_ADDR,       // unary &
-  ND_DEREF,      // unary *
-  ND_ASSIGN,     // Assignment =
-  ND_VAR,        // local variable
 } NodeKind;
 
 // AST node type
@@ -116,22 +120,36 @@ struct Node {
 
 Function* parse(Token* tok);
 
+//
 // type.c
+//
 
 typedef enum {
   TY_INT,
   TY_PTR,
   TY_FUNC,
+  TY_ARRAY,
 } TypeKind;
 
 struct Type {
   TypeKind kind;
+  int size;  // sizeof() value
 
-  // Pointer
+  // Pointer-to or array-of type. We intentionally use the same member
+  // to represent pointer/array duality in C.
+  //
+  // In many contexts in which a pointer is expected, we examine this
+  // member instead of "kind" member to determine whether a type is a
+  // pointer or not. That means in many contexts "array of T" is
+  // naturally handled as if it were "pointer to T", as required by
+  // the C spec.
   Type* base;
 
   // Declaration
   Token* name;
+
+  // Array
+  int array_len;
 
   // Function type
   Type* return_ty;
@@ -145,6 +163,7 @@ bool is_integer(Type* ty);
 Type* copy_type(Type* ty);
 Type* pointer_to(Type* base);
 Type* func_type(Type* return_ty);
+Type* array_of(Type* base, int size);
 void add_type(Node* node);
 
 //
