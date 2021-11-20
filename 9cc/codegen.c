@@ -2,7 +2,7 @@
 
 static FILE* output_file;
 static int depth;
-static char* argreg8[] = {"%dil", "%sil", "%dl", "%cl", "r8b", "%r9b "};
+static char* argreg8[] = {"%dil", "%sil", "%dl", "%cl", "%r8b", "%r9b"};
 static char* argreg64[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
 static Obj* current_fn;
 
@@ -71,21 +71,20 @@ static void load(Type* ty) {
     return;
   }
 
-  if (ty->size == 1) {
+  if (ty->size == 1)
     println("  movsbq (%%rax), %%rax");
-  } else {
+  else
     println("  mov (%%rax), %%rax");
-  }
 }
 
 // Store %rax to an address that the stack top is pointing to.
 static void store(Type* ty) {
   pop("%rdi");
-  if (ty->size == 1) {
+
+  if (ty->size == 1)
     println("  mov %%al, (%%rdi)");
-  } else {
+  else
     println("  mov %%rax, (%%rdi)");
-  }
 }
 
 // Generate code for a given node.
@@ -116,9 +115,8 @@ static void gen_expr(Node* node) {
       store(node->ty);
       return;
     case ND_STMT_EXPR:
-      for (Node* n = node->body; n; n = n->next) {
+      for (Node* n = node->body; n; n = n->next)
         gen_stmt(n);
-      }
       return;
     case ND_FUNCALL: {
       int nargs = 0;
@@ -249,10 +247,10 @@ static void emit_data(Obj* prog) {
     println("  .data");
     println("  .globl %s", var->name);
     println("%s:", var->name);
+
     if (var->init_data) {
-      for (int i = 0; i < var->ty->size; i++) {
+      for (int i = 0; i < var->ty->size; i++)
         println("  .byte %d", var->init_data[i]);
-      }
     } else {
       println("  .zero %d", var->ty->size);
     }
@@ -276,12 +274,12 @@ static void emit_text(Obj* prog) {
 
     // Save passed-by-register arguments to the stack
     int i = 0;
-    for (Obj* var = fn->params; var; var = var->next)
-      if (var->ty->size == 1) {
+    for (Obj* var = fn->params; var; var = var->next) {
+      if (var->ty->size == 1)
         println("  mov %s, %d(%%rbp)", argreg8[i++], var->offset);
-      } else {
+      else
         println("  mov %s, %d(%%rbp)", argreg64[i++], var->offset);
-      }
+    }
 
     // Emit code
     gen_stmt(fn->body);

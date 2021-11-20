@@ -210,7 +210,7 @@ static Node* declaration(Token** rest, Token* tok) {
 }
 
 // Returns true if a given token represents a type.
-static bool is_typenmae(Token* tok) {
+static bool is_typename(Token* tok) {
   return equal(tok, "char") || equal(tok, "int");
 }
 
@@ -280,7 +280,7 @@ static Node* compound_stmt(Token** rest, Token* tok) {
   Node head = {};
   Node* cur = &head;
   while (!equal(tok, "}")) {
-    if (is_typenmae(tok))
+    if (is_typename(tok))
       cur = cur->next = declaration(&tok, tok);
     else
       cur = cur->next = stmt(&tok, tok);
@@ -530,15 +530,21 @@ static Node* funcall(Token** rest, Token* tok) {
   return node;
 }
 
-// primary =  "(" "{" stmt+ "}" ")"
-//          | "(" expr ")" | "sizeof" unary | ident func-args? | str | num
+// primary = "(" "{" stmt+ "}" ")"
+//         | "(" expr ")"
+//         | "sizeof" unary
+//         | ident func-args?
+//         | str
+//         | num
 static Node* primary(Token** rest, Token* tok) {
   if (equal(tok, "(") && equal(tok->next, "{")) {
+    // This is a GNU statement expresssion.
     Node* node = new_node(ND_STMT_EXPR, tok);
     node->body = compound_stmt(&tok, tok->next->next)->body;
     *rest = skip(tok, ")");
     return node;
   }
+
   if (equal(tok, "(")) {
     Node* node = expr(&tok, tok->next);
     *rest = skip(tok, ")");
