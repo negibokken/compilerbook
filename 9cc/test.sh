@@ -24,7 +24,7 @@ assert() {
     echo "$input => $expected expected, but got $actual"
     exit 1
   fi
-}
+
 
 assert 0 'int main() { return 0; }'
 assert 42 'int main() { return 42; }'
@@ -212,5 +212,6 @@ assert 2 'int main() { return ({ 0; 1; 2; }); }'
 assert 1 'int main() { ({ 0; return 1; 2; }); return 3; }'
 assert 6 'int main() { return ({ 1; }) + ({ 2; }) + ({ 3; }); }'
 assert 3 'int main() { return ({ int x=3; x; }); }'
+assert 121 'int main() { return "\ax\ny"[3]; }'
 
 echo OK
