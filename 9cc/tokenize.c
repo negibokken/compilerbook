@@ -15,29 +15,25 @@ void error(char* fmt, ...) {
   exit(1);
 }
 
-// Reports an error in the following format and exit.
+// Reports an error message in the following format and exit.
 //
 // foo.c:10: x = y + 1;
-//               ^ <error messsage here>
+//               ^ <error message here>
 static void verror_at(char* loc, char* fmt, va_list ap) {
   // Find a line containing `loc`.
   char* line = loc;
-  while (current_input < line && line[-1] != '\n') {
+  while (current_input < line && line[-1] != '\n')
     line--;
-  }
 
   char* end = loc;
-  while (*end != '\n') {
+  while (*end != '\n')
     end++;
-  }
 
   // Get a line number.
   int line_no = 1;
-  for (char* p = current_input; p < line; p++) {
-    if (*p == '\n') {
+  for (char* p = current_input; p < line; p++)
+    if (*p == '\n')
       line_no++;
-    }
-  }
 
   // Print out the line.
   int indent = fprintf(stderr, "%s:%d: ", current_filename, line_no);
@@ -46,7 +42,6 @@ static void verror_at(char* loc, char* fmt, va_list ap) {
   // Show the error message.
   int pos = loc - line + indent;
 
-  fprintf(stderr, "%s\n", current_input);
   fprintf(stderr, "%*s", pos, "");  // print pos spaces.
   fprintf(stderr, "^ ");
   vfprintf(stderr, fmt, ap);
@@ -111,12 +106,10 @@ static bool is_ident2(char c) {
 }
 
 static int from_hex(char c) {
-  if ('0' <= c && c <= '9') {
+  if ('0' <= c && c <= '9')
     return c - '0';
-  }
-  if ('a' <= c && c <= 'f') {
+  if ('a' <= c && c <= 'f')
     return c - 'a' + 10;
-  }
   return c - 'A' + 10;
 }
 
@@ -130,8 +123,9 @@ static int read_punct(char* p) {
 }
 
 static bool is_keyword(Token* tok) {
-  static char* kw[] = {"return", "if",  "else",   "for",
-                       "while",  "int", "sizeof", "char"};
+  static char* kw[] = {
+      "return", "if", "else", "for", "while", "int", "sizeof", "char",
+  };
 
   for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++)
     if (equal(tok, kw[i]))
@@ -141,33 +135,43 @@ static bool is_keyword(Token* tok) {
 
 static int read_escaped_char(char** new_pos, char* p) {
   if ('0' <= *p && *p <= '7') {
+    // Read an octal number.
     int c = *p++ - '0';
     if ('0' <= *p && *p <= '7') {
       c = (c << 3) + (*p++ - '0');
-      if ('0' <= *p && *p <= '7') {
+      if ('0' <= *p && *p <= '7')
         c = (c << 3) + (*p++ - '0');
-      }
     }
     *new_pos = p;
     return c;
   }
 
   if (*p == 'x') {
+    // Read a hexadecimal number.
     p++;
-    if (!isxdigit(*p)) {
+    if (!isxdigit(*p))
       error_at(p, "invalid hex escape sequence");
-    }
 
     int c = 0;
-    for (; isxdigit(*p); p++) {
+    for (; isxdigit(*p); p++)
       c = (c << 4) + from_hex(*p);
-    }
     *new_pos = p;
     return c;
   }
 
   *new_pos = p + 1;
 
+  // Escape sequences are defined using themselves here. E.g.
+  // '\n' is implemented using '\n'. This tautological definition
+  // works because the compiler that compiles our compiler knows
+  // what '\n' actually is. In other words, we "inherit" the ASCII
+  // code of '\n' from the compiler that compiles our compiler,
+  // so we don't have to teach the actual code here.
+  //
+  // This fact has huge implications not only for the correctness
+  // of the compiler but also for the security of the generated code.
+  // For more info, read "Reflections on Trusting Trust" by Ken Thompson.
+  // https://github.com/rui314/chibicc/wiki/thompson1984.pdf
   switch (*p) {
     case 'a':
       return '\a';
@@ -183,6 +187,7 @@ static int read_escaped_char(char** new_pos, char* p) {
       return '\f';
     case 'r':
       return '\r';
+    // [GNU] \e for the ASCII escape character is a GNU C extension.
     case 'e':
       return 27;
     default:
@@ -190,15 +195,14 @@ static int read_escaped_char(char** new_pos, char* p) {
   }
 }
 
+// Find a closing double-quote.
 static char* string_literal_end(char* p) {
   char* start = p;
   for (; *p != '"'; p++) {
-    if (*p == '\n' || *p == '\0') {
+    if (*p == '\n' || *p == '\0')
       error_at(start, "unclosed string literal");
-    }
-    if (*p == '\\') {
+    if (*p == '\\')
       p++;
-    }
   }
   return p;
 }
@@ -209,12 +213,10 @@ static Token* read_string_literal(char* start) {
   int len = 0;
 
   for (char* p = start + 1; p < end;) {
-    if (*p == '\\') {
+    if (*p == '\\')
       buf[len++] = read_escaped_char(&p, p + 1);
-      p += 2;
-    } else {
+    else
       buf[len++] = *p++;
-    }
   }
 
   Token* tok = new_token(TK_STR, start, end + 1);
@@ -290,42 +292,34 @@ static char* read_file(char* path) {
   FILE* fp;
 
   if (strcmp(path, "-") == 0) {
-    // By convention, read from stdion if a given filename is "-"
+    // By convention, read from stdin if a given filename is "-".
     fp = stdin;
   } else {
     fp = fopen(path, "r");
-    if (!fp) {
-      fp = fopen(path, "r");
-      if (!fp) {
-        error("cannot open %s: %s", path, strerror(errno));
-      }
-    }
+    if (!fp)
+      error("cannot open %s: %s", path, strerror(errno));
   }
 
   char* buf;
   size_t buflen;
-
   FILE* out = open_memstream(&buf, &buflen);
 
   // Read the entire file.
   for (;;) {
     char buf2[4096];
     int n = fread(buf2, 1, sizeof(buf2), fp);
-    if (n == 0) {
+    if (n == 0)
       break;
-    }
     fwrite(buf2, 1, n, out);
   }
 
-  if (fp != stdin) {
+  if (fp != stdin)
     fclose(fp);
-  }
 
-  // Make sure thpat the last line is propertly terminate d with '\n'
+  // Make sure that the last line is properly terminated with '\n'.
   fflush(out);
-  if (buflen == 0 || buf[buflen - 1] != '\n') {
+  if (buflen == 0 || buf[buflen - 1] != '\n')
     fputc('\n', out);
-  }
   fputc('\0', out);
   fclose(out);
   return buf;
