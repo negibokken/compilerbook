@@ -98,7 +98,21 @@ static bool is_keyword(Token* tok) {
   return false;
 }
 
-static int read_escaped_char(char* p) {
+static int read_escaped_char(char** new_pos, char* p) {
+  if ('0' <= *p && *p <= '7') {
+    int c = *p++ - '0';
+    if ('0' <= *p && *p <= '7') {
+      c = (c << 3) + (*p++ - '0');
+      if ('0' <= *p && *p <= '7') {
+        c = (c << 3) + (*p++ - '0');
+      }
+    }
+    *new_pos = p;
+    return c;
+  }
+
+  *new_pos = p + 1;
+
   switch (*p) {
     case 'a':
       return '\a';
@@ -141,7 +155,7 @@ static Token* read_string_literal(char* start) {
 
   for (char* p = start + 1; p < end;) {
     if (*p == '\\') {
-      buf[len++] = read_escaped_char(p + 1);
+      buf[len++] = read_escaped_char(&p, p + 1);
       p += 2;
     } else {
       buf[len++] = *p++;
