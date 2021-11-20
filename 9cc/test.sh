@@ -13,7 +13,7 @@ assert() {
   expected="$1"
   input="$2"
 
-  echo "$input" | ./9cc - > tmp.s || exit
+  echo "$input" | ./9cc -o tmp.s - || exit
   gcc -static -o tmp tmp.s tmp2.o
   ./tmp
   actual="$?"
@@ -24,6 +24,7 @@ assert() {
     echo "$input => $expected expected, but got $actual"
     exit 1
   fi
+}
 
 
 assert 0 'int main() { return 0; }'
