@@ -45,11 +45,10 @@ static void verror_at(int line_no, char* loc, char* fmt, va_list ap) {
 
 void error_at(char* loc, char* fmt, ...) {
   int line_no = 1;
-  for (char* p = current_input; p < loc; p++) {
-    if (*p == '\n') {
+  for (char* p = current_input; p < loc; p++)
+    if (*p == '\n')
       line_no++;
-    }
-  }
+
   va_list ap;
   va_start(ap, fmt);
   verror_at(line_no, loc, fmt, ap);
@@ -116,11 +115,10 @@ static int from_hex(char c) {
 // Read a punctuator token from p and returns its length.
 static int read_punct(char* p) {
   static char* kw[] = {"==", "!=", "<=", ">=", "->"};
-  for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
-    if (startswith(p, kw[i])) {
+
+  for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++)
+    if (startswith(p, kw[i]))
       return strlen(kw[i]);
-    }
-  }
 
   return ispunct(*p) ? 1 : 0;
 }
@@ -245,9 +243,8 @@ static void add_line_numbers(Token* tok) {
       tok->line_no = n;
       tok = tok->next;
     }
-    if (*p == '\n') {
+    if (*p == '\n')
       n++;
-    }
   } while (*p++);
 }
 

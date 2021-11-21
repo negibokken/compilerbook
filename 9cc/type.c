@@ -5,7 +5,7 @@ Type* ty_void = &(Type){TY_VOID, 1, 1};
 Type* ty_char = &(Type){TY_CHAR, 1, 1};
 Type* ty_short = &(Type){TY_SHORT, 2, 2};
 Type* ty_int = &(Type){TY_INT, 4, 4};
-Type* ty_long = &(Type){TY_INT, 8, 8};
+Type* ty_long = &(Type){TY_LONG, 8, 8};
 
 static Type* new_type(TypeKind kind, int size, int align) {
   Type* ty = calloc(1, sizeof(Type));
@@ -102,9 +102,9 @@ void add_type(Node* node) {
     case ND_DEREF:
       if (!node->lhs->ty->base)
         error_tok(node->tok, "invalid pointer dereference");
-      if (node->lhs->ty->base->kind == TY_VOID) {
+      if (node->lhs->ty->base->kind == TY_VOID)
         error_tok(node->tok, "dereferencing a void pointer");
-      }
+
       node->ty = node->lhs->ty->base;
       return;
     case ND_STMT_EXPR:

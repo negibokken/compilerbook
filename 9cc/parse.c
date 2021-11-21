@@ -28,7 +28,7 @@ struct Scope {
   TagScope* tags;
 };
 
-// Variable attributes such as typedef or extern
+// Variable attributes such as typedef or extern.
 typedef struct {
   bool is_typedef;
 } VarAttr;
@@ -43,7 +43,7 @@ static Obj* globals;
 static Scope* scope = &(Scope){};
 
 static bool is_typename(Token* tok);
-static Type* declspec(Token** rest, Token* tok, VarAttr* atr);
+static Type* declspec(Token** rest, Token* tok, VarAttr* attr);
 static Type* declarator(Token** rest, Token* tok, Type* ty);
 static Node* declaration(Token** rest, Token* tok, Type* basety);
 static Node* compound_stmt(Token** rest, Token* tok);
@@ -60,7 +60,7 @@ static Type* union_decl(Token** rest, Token* tok);
 static Node* postfix(Token** rest, Token* tok);
 static Node* unary(Token** rest, Token* tok);
 static Node* primary(Token** rest, Token* tok);
-static Token* parse_typedef(Token* tok, Type* ty);
+static Token* parse_typedef(Token* tok, Type* basety);
 
 static void enter_scope(void) {
   Scope* sc = calloc(1, sizeof(Scope));
@@ -176,14 +176,13 @@ static char* get_ident(Token* tok) {
 static Type* find_typedef(Token* tok) {
   if (tok->kind == TK_IDENT) {
     VarScope* sc = find_var(tok);
-    if (sc) {
+    if (sc)
       return sc->type_def;
-    }
   }
   return NULL;
 }
 
-static int get_number(Token* tok) {
+static long get_number(Token* tok) {
   if (tok->kind != TK_NUM)
     error_tok(tok, "expected a number");
   return tok->val;
@@ -197,18 +196,33 @@ static void push_tag_scope(Token* tok, Type* ty) {
   scope->tags = sc;
 }
 
-// declspec = "void" | "char" | "short" | "int" | "long" | struct-decl
-//          | union-decl
-//          | "typedef"
-//          | struct-decl | union-decl | typedef-name)+
+// declspec = ("void" | "char" | "short" | "int" | "long"
+//             | "typedef"
+//             | struct-decl | union-decl | typedef-name)+
+//
+// The order of typenames in a type-specifier doesn't matter. For
+// example, `int long static` means the same as `static long int`.
+// That can also be written as `static long` because you can omit
+// `int` if `long` or `short` are specified. However, something like
+// `char int` is not a valid type specifier. We have to accept only a
+// limited combinations of the typenames.
+//
+// In this function, we count the number of occurrences of each typename
+// while keeping the "current" type object that the typenames up
+// until that point represent. When we reach a non-typename token,
+// we returns the current type object.
 static Type* declspec(Token** rest, Token* tok, VarAttr* attr) {
+  // We use a single integer as counters for all typenames.
+  // For example, bits 0 and 1 represents how many times we saw the
+  // keyword "void" so far. With this, we can use a switch statement
+  // as you can see below.
   enum {
     VOID = 1 << 0,
     CHAR = 1 << 2,
-    SHORT = 2 << 4,
-    INT = 2 << 6,
-    LONG = 2 << 8,
-    OTHER = 2 << 10,
+    SHORT = 1 << 4,
+    INT = 1 << 6,
+    LONG = 1 << 8,
+    OTHER = 1 << 10,
   };
 
   Type* ty = ty_int;
@@ -217,10 +231,9 @@ static Type* declspec(Token** rest, Token* tok, VarAttr* attr) {
   while (is_typename(tok)) {
     // Handle "typedef" keyword
     if (equal(tok, "typedef")) {
-      if (!attr) {
+      if (!attr)
         error_tok(tok,
-                  "storage class specifier is not allowed in this context.");
-      }
+                  "storage class specifier is not allowed in this context");
       attr->is_typedef = true;
       tok = tok->next;
       continue;
@@ -240,11 +253,12 @@ static Type* declspec(Token** rest, Token* tok, VarAttr* attr) {
         ty = ty2;
         tok = tok->next;
       }
+
       counter += OTHER;
       continue;
     }
 
-    // Handle build-in types.
+    // Handle built-in types.
     if (equal(tok, "void"))
       counter += VOID;
     else if (equal(tok, "char"))
@@ -281,8 +295,10 @@ static Type* declspec(Token** rest, Token* tok, VarAttr* attr) {
       default:
         error_tok(tok, "invalid type");
     }
+
     tok = tok->next;
   }
+
   *rest = tok;
   return ty;
 }
@@ -361,6 +377,7 @@ static Type* abstract_declarator(Token** rest, Token* tok, Type* ty) {
     ty = type_suffix(rest, tok, ty);
     return abstract_declarator(&tok, start->next, ty);
   }
+
   return type_suffix(rest, tok, ty);
 }
 
@@ -382,9 +399,9 @@ static Node* declaration(Token** rest, Token* tok, Type* basety) {
       tok = skip(tok, ",");
 
     Type* ty = declarator(&tok, tok, basety);
-    if (ty->kind == TY_VOID) {
+    if (ty->kind == TY_VOID)
       error_tok(tok, "variable declared void");
-    }
+
     Obj* var = new_lvar(get_ident(ty->name), ty);
 
     if (!equal(tok, "="))
@@ -404,14 +421,13 @@ static Node* declaration(Token** rest, Token* tok, Type* basety) {
 
 // Returns true if a given token represents a type.
 static bool is_typename(Token* tok) {
-  static char* kw[] = {"void", "char",   "short", "int",
-                       "long", "struct", "union", "typedef"};
+  static char* kw[] = {
+      "void", "char", "short", "int", "long", "struct", "union", "typedef",
+  };
 
-  for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
-    if (equal(tok, kw[i])) {
+  for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++)
+    if (equal(tok, kw[i]))
       return true;
-    }
-  }
   return find_typedef(tok);
 }
 
@@ -491,6 +507,7 @@ static Node* compound_stmt(Token** rest, Token* tok) {
         tok = parse_typedef(tok, basety);
         continue;
       }
+
       cur = cur->next = declaration(&tok, tok, basety);
     } else {
       cur = cur->next = stmt(&tok, tok);
@@ -877,7 +894,7 @@ static Node* funcall(Token** rest, Token* tok) {
 
 // primary = "(" "{" stmt+ "}" ")"
 //         | "(" expr ")"
-//         | "sizeof" "(" type-name")"
+//         | "sizeof" "(" type-name ")"
 //         | "sizeof" unary
 //         | ident func-args?
 //         | str
@@ -944,9 +961,8 @@ static Token* parse_typedef(Token* tok, Type* basety) {
   bool first = true;
 
   while (!consume(&tok, tok, ";")) {
-    if (!first) {
+    if (!first)
       tok = skip(tok, ",");
-    }
     first = false;
 
     Type* ty = declarator(&tok, tok, basety);
@@ -969,9 +985,9 @@ static Token* function(Token* tok, Type* basety) {
   fn->is_function = true;
   fn->is_definition = !consume(&tok, tok, ";");
 
-  if (!fn->is_definition) {
+  if (!fn->is_definition)
     return tok;
-  }
+
   locals = NULL;
   enter_scope();
   create_param_lvars(ty->params);
