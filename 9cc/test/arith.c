@@ -1,5 +1,6 @@
 #include "test.h"
 
+// clang-format off
 int main() {
   ASSERT(0, 0);
   ASSERT(42, 42);
@@ -30,6 +31,8 @@ int main() {
   ASSERT(1, 1 >= 0);
   ASSERT(1, 1 >= 1);
   ASSERT(0, 1 >= 2);
+
+  ASSERT(0, 1073741824 * 100 / 100);
 
   printf("OK\n");
   return 0;
