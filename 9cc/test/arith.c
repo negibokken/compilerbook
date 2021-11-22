@@ -10,8 +10,8 @@ int main() {
   ASSERT(15, 5 * (9 - 6));
   ASSERT(4, (3 + 5) / 2);
   ASSERT(10, -10 + 20);
-  ASSERT(10, --10);
-  ASSERT(10, --+10);
+  ASSERT(10, - -10);
+  ASSERT(10, - - +10);
 
   ASSERT(0, 0 == 1);
   ASSERT(1, 42 == 42);
@@ -42,6 +42,10 @@ int main() {
   ASSERT(6, ({ int i=3; i*=2; }));
   ASSERT(3, ({ int i=6; i/=2; i; }));
   ASSERT(3, ({ int i=6; i/=2; }));
+
+  ASSERT(3, ({ int i=2; ++i; }));
+  ASSERT(2, ({ int a[3]; a[0]=0; a[1]=1; a[2]=2; int *p=a+1; ++*p; }));
+  ASSERT(0, ({ int a[3]; a[0]=0; a[1]=1; a[2]=2; int *p=a+1; --*p; }));
 
   printf("OK\n");
   return 0;
