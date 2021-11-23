@@ -81,6 +81,11 @@ static void load(Type* ty) {
     return;
   }
 
+  // When we load a char or a short value to a register, we always
+  // extend them to the size of int, so we can assume the lower half of
+  // a register always contains a valid value. The upper half of a
+  // register for char, short and int may contain garbage. When we load
+  // a long value to a register, it simply occupies the entire register.
   if (ty->size == 1)
     println("  movsbl (%%rax), %%eax");
   else if (ty->size == 2)
@@ -114,11 +119,10 @@ static void store(Type* ty) {
 }
 
 static void cmp_zero(Type* ty) {
-  if (is_integer(ty) && ty->size <= 4) {
+  if (is_integer(ty) && ty->size <= 4)
     println("  cmp $0, %%eax");
-  } else {
+  else
     println("  cmp $0, %%rax");
-  }
 }
 
 enum { I8, I16, I32, I64 };
@@ -148,22 +152,20 @@ static char* cast_table[][10] = {
 };
 
 static void cast(Type* from, Type* to) {
-  if (to->kind == TY_VOID) {
+  if (to->kind == TY_VOID)
     return;
-  }
 
   if (to->kind == TY_BOOL) {
     cmp_zero(from);
     println("  setne %%al");
-    println("  movzx  %%al, %%eax");
+    println("  movzx %%al, %%eax");
     return;
   }
 
   int t1 = getTypeId(from);
   int t2 = getTypeId(to);
-  if (cast_table[t1][t2]) {
+  if (cast_table[t1][t2])
     println("  %s", cast_table[t1][t2]);
-  }
 }
 
 // Generate code for a given node.
@@ -297,9 +299,9 @@ static void gen_expr(Node* node) {
       else
         println("  cdq");
       println("  idiv %s", di);
-      if (node->kind == ND_MOD) {
+
+      if (node->kind == ND_MOD)
         println("  mov %%rdx, %%rax");
-      }
       return;
     case ND_BITAND:
       println("  and %%rdi, %%rax");
@@ -326,6 +328,17 @@ static void gen_expr(Node* node) {
         println("  setle %%al");
 
       println("  movzb %%al, %%rax");
+      return;
+    case ND_SHL:
+      println("  mov %%rdi, %%rcx");
+      println("  shl %%cl, %s", ax);
+      return;
+    case ND_SHR:
+      println("  mov %%rdi, %%rcx");
+      if (node->ty->size == 8)
+        println("  sar %%cl, %s", ax);
+      else
+        println("  sar %%cl, %s", ax);
       return;
   }
 
@@ -357,7 +370,7 @@ static void gen_stmt(Node* node) {
       if (node->cond) {
         gen_expr(node->cond);
         println("  cmp $0, %%rax");
-        println("  je  %s", node->brk_label);
+        println("  je %s", node->brk_label);
       }
       gen_stmt(node->then);
       println("%s:", node->cont_label);
@@ -376,9 +389,9 @@ static void gen_stmt(Node* node) {
         println("  je %s", n->label);
       }
 
-      if (node->default_case) {
+      if (node->default_case)
         println("  jmp %s", node->default_case->label);
-      }
+
       println("  jmp %s", node->brk_label);
       gen_stmt(node->then);
       println("%s:", node->brk_label);
@@ -467,11 +480,11 @@ static void emit_text(Obj* prog) {
     if (!fn->is_function || !fn->is_definition)
       continue;
 
-    if (fn->is_static) {
+    if (fn->is_static)
       println("  .local %s", fn->name);
-    } else {
+    else
       println("  .globl %s", fn->name);
-    }
+
     println("  .text");
     println("%s:", fn->name);
     current_fn = fn;

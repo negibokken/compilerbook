@@ -58,6 +58,7 @@ void error_tok(Token* tok, char* fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   verror_at(tok->line_no, tok->loc, fmt, ap);
+  exit(1);
 }
 
 // Consumes the current token if it matches `op`.
@@ -114,8 +115,10 @@ static int from_hex(char c) {
 
 // Read a punctuator token from p and returns its length.
 static int read_punct(char* p) {
-  static char* kw[] = {"==", "!=", "<=", ">=", "->", "+=", "-=", "*=", "/=",
-                       "++", "--", "%=", "&=", "|=", "^=", "&&", "||"};
+  static char* kw[] = {
+      "<<=", ">>=", "==", "!=", "<=", ">=", "->", "+=", "-=", "*=", "/=",
+      "++",  "--",  "%=", "&=", "|=", "^=", "&&", "||", "<<", ">>",
+  };
 
   for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++)
     if (startswith(p, kw[i]))
@@ -126,10 +129,10 @@ static int read_punct(char* p) {
 
 static bool is_keyword(Token* tok) {
   static char* kw[] = {
-      "return", "if",       "else",   "for",     "while",  "int",
-      "sizeof", "char",     "struct", "union",   "short",  "long",
-      "void",   "typedef",  "_Bool",  "enum",    "static", "goto",
-      "break",  "continue", "case",   "default",
+      "return", "if",       "else",   "for",   "while",   "int",
+      "sizeof", "char",     "struct", "union", "short",   "long",
+      "void",   "typedef",  "_Bool",  "enum",  "static",  "goto",
+      "break",  "continue", "switch", "case",  "default",
   };
 
   for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++)
@@ -232,21 +235,18 @@ static Token* read_string_literal(char* start) {
 
 static Token* read_char_literal(char* start) {
   char* p = start + 1;
-  if (*p == '\0') {
+  if (*p == '\0')
     error_at(start, "unclosed char literal");
-  }
 
   char c;
-  if (*p == '\\') {
+  if (*p == '\\')
     c = read_escaped_char(&p, p + 1);
-  } else {
+  else
     c = *p++;
-  }
 
   char* end = strchr(p, '\'');
-  if (!end) {
+  if (!end)
     error_at(p, "unclosed char literal");
-  }
 
   Token* tok = new_token(TK_NUM, start, end + 1);
   tok->val = c;
@@ -268,9 +268,8 @@ static Token* read_int_literal(char* start) {
   }
 
   long val = strtoul(p, &p, base);
-  if (isalnum(*p)) {
+  if (isalnum(*p))
     error_at(p, "invalid digit");
-  }
 
   Token* tok = new_token(TK_NUM, start, p);
   tok->val = val;

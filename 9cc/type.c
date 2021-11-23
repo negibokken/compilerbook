@@ -28,10 +28,6 @@ Type* copy_type(Type* ty) {
   return ret;
 }
 
-Type* enum_type(void) {
-  return new_type(TY_ENUM, 4, 4);
-}
-
 Type* pointer_to(Type* base) {
   Type* ty = new_type(TY_PTR, 8, 8);
   ty->base = base;
@@ -52,20 +48,29 @@ Type* array_of(Type* base, int len) {
   return ty;
 }
 
+Type* enum_type(void) {
+  return new_type(TY_ENUM, 4, 4);
+}
+
 Type* struct_type(void) {
   return new_type(TY_STRUCT, 0, 1);
 }
 
 static Type* get_common_type(Type* ty1, Type* ty2) {
-  if (ty1->base) {
+  if (ty1->base)
     return pointer_to(ty1->base);
-  }
-  if (ty1->size == 8 || ty2->size == 8) {
+  if (ty1->size == 8 || ty2->size == 8)
     return ty_long;
-  }
   return ty_int;
 }
 
+// For many binary operators, we implicitly promote operands so that
+// both operands have the same type. Any integral type smaller than
+// int is always promoted to int. If the type of one operand is larger
+// than the other's (e.g. "long" vs. "int"), the smaller operand will
+// be promoted to match with the other.
+//
+// This operation is called the "usual arithmetic conversion".
 static void usual_arith_conv(Node** lhs, Node** rhs) {
   Type* ty = get_common_type((*lhs)->ty, (*rhs)->ty);
   *lhs = new_cast(*lhs, ty);
@@ -113,9 +118,8 @@ void add_type(Node* node) {
     case ND_ASSIGN:
       if (node->lhs->ty->kind == TY_ARRAY)
         error_tok(node->lhs->tok, "not an lvalue");
-      if (node->lhs->ty->kind != TY_STRUCT) {
+      if (node->lhs->ty->kind != TY_STRUCT)
         node->rhs = new_cast(node->rhs, node->lhs->ty);
-      }
       node->ty = node->lhs->ty;
       return;
     case ND_EQ:
@@ -134,6 +138,8 @@ void add_type(Node* node) {
       node->ty = ty_int;
       return;
     case ND_BITNOT:
+    case ND_SHL:
+    case ND_SHR:
       node->ty = node->lhs->ty;
       return;
     case ND_VAR:

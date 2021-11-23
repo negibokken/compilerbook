@@ -111,6 +111,8 @@ typedef enum {
   ND_BITAND,     // &
   ND_BITOR,      // |
   ND_BITXOR,     // ^
+  ND_SHL,        // <<
+  ND_SHR,        // >>
   ND_MOD,        // %
   ND_RETURN,     // "return"
   ND_IF,         // "if"
