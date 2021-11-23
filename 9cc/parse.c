@@ -93,6 +93,8 @@ static Type* enum_specifier(Token** rest, Token* tok);
 static Type* type_suffix(Token** rest, Token* tok, Type* ty);
 static Type* declarator(Token** rest, Token* tok, Type* ty);
 static Node* declaration(Token** rest, Token* tok, Type* basety);
+static void initializer2(Token** rest, Token* tok, Initializer* init);
+static Initializer* initializer(Token** rest, Token* tok, Type* ty);
 static Node* lvar_initializer(Token** rest, Token* tok, Obj* var);
 static Node* compound_stmt(Token** rest, Token* tok);
 static Node* stmt(Token** rest, Token* tok);
@@ -598,20 +600,38 @@ static Token* skip_excess_element(Token* tok) {
   return tok;
 }
 
-// initializer = "{" initializer ("," initializer)* "}"
-//             | assign
-static void initializer2(Token** rest, Token* tok, Initializer* init) {
-  if (init->ty->kind == TY_ARRAY) {
-    tok = skip(tok, "{");
+// string-initializer = string-literal
+static void string_initializer(Token** rest, Token* tok, Initializer* init) {
+  int len = MIN(init->ty->array_len, tok->ty->array_len);
+  for (int i = 0; i < len; i++)
+    init->children[i]->expr = new_num(tok->str[i], tok);
+  *rest = tok->next;
+}
 
-    for (int i = 0; !consume(rest, tok, "}"); i++) {
-      if (i > 0)
-        tok = skip(tok, ",");
-      if (i < init->ty->array_len)
-        initializer2(&tok, tok, init->children[i]);
-      else
-        tok = skip_excess_element(tok);
-    }
+// array-initializer = "{" initializer ("," initializer)* "}"
+static void array_initializer(Token** rest, Token* tok, Initializer* init) {
+  tok = skip(tok, "{");
+
+  for (int i = 0; !consume(rest, tok, "}"); i++) {
+    if (i > 0)
+      tok = skip(tok, ",");
+
+    if (i < init->ty->array_len)
+      initializer2(&tok, tok, init->children[i]);
+    else
+      tok = skip_excess_element(tok);
+  }
+}
+
+// initializer = string-initializer | array-initializer | assign
+static void initializer2(Token** rest, Token* tok, Initializer* init) {
+  if (init->ty->kind == TY_ARRAY && tok->kind == TK_STR) {
+    string_initializer(rest, tok, init);
+    return;
+  }
+
+  if (init->ty->kind == TY_ARRAY) {
+    array_initializer(rest, tok, init);
     return;
   }
 
@@ -647,9 +667,8 @@ static Node* create_lvar_init(Initializer* init,
     return node;
   }
 
-  if (!init->expr) {
+  if (!init->expr)
     return new_node(ND_NULL_EXPR, tok);
-  }
 
   Node* lhs = init_desg_expr(desg, tok);
   return new_binary(ND_ASSIGN, lhs, init->expr, tok);
@@ -668,8 +687,14 @@ static Node* create_lvar_init(Initializer* init,
 static Node* lvar_initializer(Token** rest, Token* tok, Obj* var) {
   Initializer* init = initializer(rest, tok, var->ty);
   InitDesg desg = {NULL, 0, var};
+
+  // If a partial initializer list is given, the standard requires
+  // that unspecified elements are set to 0. Here, we simply
+  // zero-initialize the entire memory region of a variable before
+  // initializing it with user-supplied values.
   Node* lhs = new_node(ND_MEMZERO, tok);
   lhs->var = var;
+
   Node* rhs = create_lvar_init(init, var->ty, &desg, tok);
   return new_binary(ND_COMMA, lhs, rhs, tok);
 }
